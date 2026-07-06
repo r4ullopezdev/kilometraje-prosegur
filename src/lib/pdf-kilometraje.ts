@@ -5,7 +5,6 @@ function zeroPad(n: number) {
   return String(n).padStart(2, '0');
 }
 
-// Draw a bordered cell with optional gray header background
 function cell(
   doc: any,
   x: number, y: number, w: number, h: number,
@@ -14,14 +13,17 @@ function cell(
     bold?: boolean;
     fontSize?: number;
     align?: 'left' | 'center' | 'right';
-    headerBg?: boolean;   // gray background for label rows
+    fillColor?: [number, number, number];
     paddingLeft?: number;
   } = {}
 ) {
-  const { bold = false, fontSize = 7, align = 'center', headerBg = false, paddingLeft = 2 } = opts;
+  const { bold = false, fontSize = 7, align = 'center', fillColor, paddingLeft = 2 } = opts;
 
-  if (headerBg) {
-    doc.setFillColor(210, 210, 210);
+  doc.setDrawColor(80);
+  doc.setLineWidth(0.25);
+
+  if (fillColor) {
+    doc.setFillColor(...fillColor);
     doc.rect(x, y, w, h, 'FD');
   } else {
     doc.setFillColor(255, 255, 255);
@@ -53,220 +55,243 @@ export async function generateKilometraje(
   year: number
 ): Promise<Blob> {
   const { jsPDF } = await import('jspdf');
-  await import('jspdf-autotable');
 
-  const doc = new jsPDF('portrait', 'mm', 'a4');
-  const m = 8;          // margin
-  const pw = 210;       // page width
-  const cw = pw - 2 * m; // content width = 194
+  // A4 landscape: 297mm × 210mm
+  const doc = new jsPDF('landscape', 'mm', 'a4');
 
+  const ML = 10;   // left/right margin
+  const MT = 8;    // top margin
+  const PW = 297;  // page width (landscape)
+  const PH = 210;  // page height (landscape)
+  const UW = PW - 2 * ML; // usable width = 277mm
+
+  const GRAY_DARK:  [number, number, number] = [180, 180, 180]; // section headers (EMPLEADO / DESPLAZAMIENTO)
+  const GRAY_LIGHT: [number, number, number] = [220, 220, 220]; // column header rows
+  const AMBER:      [number, number, number] = [255, 192,   0]; // Código Documento + 3P logo background
+
+  // ══════════════════════════════════════════════════════════════════
+  // HEADER  (logos + title + código documento)
+  // ══════════════════════════════════════════════════════════════════
+  let y = MT;
+  const HDR_H = 18;
+
+  // Globe logo (left)
+  const LOGO_W = 20;
+  doc.setFillColor(255, 255, 255);
   doc.setDrawColor(80);
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(0.25);
+  doc.rect(ML, y, LOGO_W, HDR_H, 'FD');
+  doc.addImage(LOGO_GLOBE, 'JPEG', ML + 1, y + 1, LOGO_W - 2, HDR_H - 2);
 
-  // ══════════════════════════════════════════════════════
-  // TOP HEADER ROW
-  // ══════════════════════════════════════════════════════
-  let y = m;
-  const hdrH = 20;
-
-  // Globe logo box (left)
-  const logoW = 20;
+  // Title (center)
+  const COD_W = 42;
+  const P3_W  = 22;
+  const TITLE_W = UW - LOGO_W - COD_W - P3_W;
+  const TITLE_X = ML + LOGO_W;
   doc.setFillColor(255, 255, 255);
-  doc.rect(m, y, logoW, hdrH, 'FD');
-  doc.addImage(LOGO_GLOBE, 'JPEG', m + 1, y + 1, logoW - 2, hdrH - 2);
-
-  // Title (center area)
-  const cdW = 38; // Código Documento box width
-  const logo3pW = 18;
-  const titleW = cw - logoW - cdW - logo3pW;
-  const titleX = m + logoW;
-  doc.setFillColor(255, 255, 255);
-  doc.rect(titleX, y, titleW, hdrH, 'FD');
+  doc.rect(TITLE_X, y, TITLE_W, HDR_H, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   doc.setTextColor(0);
-  doc.text('Modelo de Kilómetros y Dietas', titleX + titleW / 2, y + hdrH / 2 + 2, { align: 'center' });
+  doc.text(
+    'Modelo de Kilometrajes, Traslados y Dietas',
+    TITLE_X + TITLE_W / 2,
+    y + HDR_H / 2 + 2,
+    { align: 'center' }
+  );
 
-  // Código Documento box (yellow background)
-  const cdX = titleX + titleW;
-  doc.setFillColor(255, 215, 0);
-  doc.rect(cdX, y, cdW, hdrH, 'FD');
+  // Código Documento box (amber)
+  const COD_X = TITLE_X + TITLE_W;
+  doc.setFillColor(...AMBER);
+  doc.rect(COD_X, y, COD_W, HDR_H, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(180, 0, 0);
-  doc.text('Código Documento', cdX + cdW / 2, y + 5, { align: 'center' });
   doc.setFontSize(6);
   doc.setTextColor(0);
-  doc.text('MD-ES-SISVG-VA-17', cdX + cdW / 2, y + 9.5, { align: 'center' });
-  doc.text('Edición: 01', cdX + cdW / 2, y + 14, { align: 'center' });
+  doc.text('Código Documento', COD_X + COD_W / 2, y + 5,    { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.text('MD-ES-SISVG-VA-17',  COD_X + COD_W / 2, y + 9.5, { align: 'center' });
+  doc.text('Edición: 01',        COD_X + COD_W / 2, y + 14,  { align: 'center' });
 
-  // 3P logo box
-  const logo3pX = cdX + cdW;
-  doc.setFillColor(255, 255, 255);
-  doc.rect(logo3pX, y, logo3pW, hdrH, 'FD');
-  doc.addImage(LOGO_3P, 'JPEG', logo3pX + 1, y + 2, logo3pW - 2, hdrH - 4);
+  // 3P logo box (amber background)
+  const P3_X = COD_X + COD_W;
+  doc.setFillColor(...AMBER);
+  doc.rect(P3_X, y, P3_W, HDR_H, 'FD');
+  doc.addImage(LOGO_3P, 'JPEG', P3_X + 1, y + 1, P3_W - 2, HDR_H - 2);
+  doc.setDrawColor(80);
+  doc.rect(P3_X, y, P3_W, HDR_H);
 
-  // ══════════════════════════════════════════════════════
-  // EMPRESA / ZONA / DELEGACIÓN ROW
-  // ══════════════════════════════════════════════════════
-  y += hdrH;
-  const empresaH = 8;
+  y += HDR_H;
 
-  // Columns: [Empresa label | Empresa value | Zona label | Zona value | Delegación label | Delegación value]
-  // Widths: 16 | 50 | 12 | 36 | 20 | 60  → total 194 ✓
-  const empCols = [
-    { w: 16, text: 'Empresa', bold: true, align: 'left' as const },
-    { w: 50, text: 'PROSEGUR SIS', bold: false, align: 'left' as const },
-    { w: 12, text: 'Zona', bold: true, align: 'left' as const },
-    { w: 36, text: 'EQUIPO 1', bold: false, align: 'left' as const },
-    { w: 22, text: 'Delegación', bold: true, align: 'left' as const },
-    { w: 58, text: 'BARCELONA', bold: false, align: 'left' as const },
-  ];
-  let cx = m;
-  empCols.forEach(col => {
-    cell(doc, cx, y, col.w, empresaH, col.text, { bold: col.bold, align: col.align, fontSize: 7.5 });
-    cx += col.w;
-  });
+  // ══════════════════════════════════════════════════════════════════
+  // EMPRESA ROW  (8 alternating label/value cells)
+  // ══════════════════════════════════════════════════════════════════
+  const EMP_H = 6;
+  const E1 = 20, E2 = 42, E3 = 28, E4 = 20, E5 = 25, E6 = 30, E7 = 28;
+  const E8 = UW - E1 - E2 - E3 - E4 - E5 - E6 - E7; // remaining ≈ 84 mm
 
-  // ══════════════════════════════════════════════════════
+  let ex = ML;
+  cell(doc, ex, y, E1, EMP_H, 'Empresa',            { bold: true, fontSize: 7, fillColor: GRAY_LIGHT }); ex += E1;
+  cell(doc, ex, y, E2, EMP_H, 'PROSEGUR SIS ESPAÑA',{ fontSize: 7 }); ex += E2;
+  cell(doc, ex, y, E3, EMP_H, 'Zona Gerencial',     { bold: true, fontSize: 7, fillColor: GRAY_LIGHT }); ex += E3;
+  cell(doc, ex, y, E4, EMP_H, 'ESTE',               { fontSize: 7 }); ex += E4;
+  cell(doc, ex, y, E5, EMP_H, 'Delegación',         { bold: true, fontSize: 7, fillColor: GRAY_LIGHT }); ex += E5;
+  cell(doc, ex, y, E6, EMP_H, 'BARCELONA',          { fontSize: 7 }); ex += E6;
+  cell(doc, ex, y, E7, EMP_H, 'Zona Operativa',     { bold: true, fontSize: 7, fillColor: GRAY_LIGHT }); ex += E7;
+  cell(doc, ex, y, E8, EMP_H, 'ZONA 1 EQUIPO 2',   { fontSize: 7 });
+
+  y += EMP_H + 2;
+
+  // ══════════════════════════════════════════════════════════════════
   // EMPLEADO SECTION
-  // ══════════════════════════════════════════════════════
-  y += empresaH + 2;
+  // ══════════════════════════════════════════════════════════════════
+  const SEC_H  = 5.5; // section header height
+  const COL_H  = 5.5; // column header row height
+  const DATA_H = 5.5; // data row height
 
-  // "EMPLEADO" header band
-  const sectionHdrH = 7;
-  doc.setFillColor(210, 210, 210);
-  doc.rect(m, y, cw, sectionHdrH, 'FD');
+  // Section header band
+  doc.setFillColor(...GRAY_DARK);
+  doc.setDrawColor(80);
+  doc.setLineWidth(0.25);
+  doc.rect(ML, y, UW, SEC_H, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(0);
-  doc.text('EMPLEADO', pw / 2, y + sectionHdrH / 2 + 1.5, { align: 'center' });
-
-  y += sectionHdrH;
-
-  // Employee table columns: Código | Nombre | Apellidos | Servicio habitual | Dirección/localidad
-  // Widths: 28 | 28 | 44 | 50 | 44 = 194 ✓
-  const empTableCols = [
-    { w: 28, header: 'Código Empleado', value: employee.codigo },
-    { w: 28, header: 'Nombre', value: employee.nombre },
-    { w: 44, header: 'Apellidos', value: employee.apellidos },
-    { w: 50, header: 'Servicio habitual', value: employee.servicioHabitual },
-    { w: 44, header: 'Dirección / localidad', value: employee.direccion },
-  ];
-  const empRowH = 7;
-
-  // Headers
-  cx = m;
-  empTableCols.forEach(col => {
-    cell(doc, cx, y, col.w, empRowH, col.header, { bold: true, fontSize: 6.5, headerBg: true });
-    cx += col.w;
-  });
-  y += empRowH;
-
-  // Data row
-  cx = m;
-  empTableCols.forEach(col => {
-    cell(doc, cx, y, col.w, empRowH, col.value, { bold: false, fontSize: 7.5 });
-    cx += col.w;
-  });
-  y += empRowH + 2;
-
-  // ══════════════════════════════════════════════════════
-  // DESPLAZAMIENTO SECTION
-  // ══════════════════════════════════════════════════════
-
-  // "DESPLAZAMIENTO" header band
-  doc.setFillColor(210, 210, 210);
-  doc.rect(m, y, cw, sectionHdrH, 'FD');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('DESPLAZAMIENTO', pw / 2, y + sectionHdrH / 2 + 1.5, { align: 'center' });
-
-  y += sectionHdrH;
-
-  // Columns: Fecha | Servicio | Localidad | Nº Kilómetros | Dietas | Tipo | Cantidad | Motivo
-  // Widths: 22 | 26 | 32 | 22 | 16 | 14 | 18 | 44 = 194 ✓
-  const dispCols = [
-    { w: 22, header: 'Fecha' },
-    { w: 26, header: 'Servicio' },
-    { w: 32, header: 'Localidad' },
-    { w: 22, header: 'Nº Kilómetros' },
-    { w: 16, header: 'Dietas' },
-    { w: 14, header: 'Tipo' },
-    { w: 18, header: 'Cantidad' },
-    { w: 44, header: 'Motivo / Observaciones' },
-  ];
-  const dispHdrH = 8;
+  doc.text('EMPLEADO', PW / 2, y + SEC_H / 2 + 1.5, { align: 'center' });
+  y += SEC_H;
 
   // Column headers
-  cx = m;
-  dispCols.forEach(col => {
-    cell(doc, cx, y, col.w, dispHdrH, col.header, { bold: true, fontSize: 6, headerBg: true });
-    cx += col.w;
-  });
-  y += dispHdrH;
+  const C1 = 35, C2 = 40, C3 = 50, C4 = 65;
+  const C5 = UW - C1 - C2 - C3 - C4; // ≈ 87 mm
+  let hx = ML;
+  cell(doc, hx, y, C1, COL_H, 'Código Empleado',       { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); hx += C1;
+  cell(doc, hx, y, C2, COL_H, 'Nombre',                { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); hx += C2;
+  cell(doc, hx, y, C3, COL_H, 'Apellidos',             { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); hx += C3;
+  cell(doc, hx, y, C4, COL_H, 'Servicio habitual',     { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); hx += C4;
+  cell(doc, hx, y, C5, COL_H, 'Dirección / localidad', { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT });
+  y += COL_H;
 
-  // Build data rows from service blocks
+  // Employee data row
+  hx = ML;
+  cell(doc, hx, y, C1, DATA_H, employee.codigo,          { fontSize: 7 }); hx += C1;
+  cell(doc, hx, y, C2, DATA_H, employee.nombre,          { fontSize: 7 }); hx += C2;
+  cell(doc, hx, y, C3, DATA_H, employee.apellidos,       { fontSize: 7 }); hx += C3;
+  cell(doc, hx, y, C4, DATA_H, employee.servicioHabitual,{ fontSize: 7 }); hx += C4;
+  cell(doc, hx, y, C5, DATA_H, employee.direccion,       { fontSize: 7 });
+  y += DATA_H + 2;
+
+  // ══════════════════════════════════════════════════════════════════
+  // DESPLAZAMIENTO SECTION
+  // ══════════════════════════════════════════════════════════════════
+  const D1 = 22, D2 = 45, D3 = 35, D4 = 28, D5 = 22, D6 = 22, D7 = 22;
+  const D8 = UW - D1 - D2 - D3 - D4 - D5 - D6 - D7; // ≈ 81 mm
+
+  function drawDispHeaders(yPos: number) {
+    let dx = ML;
+    cell(doc, dx, yPos, D1, COL_H, 'Fecha',                  { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); dx += D1;
+    cell(doc, dx, yPos, D2, COL_H, 'Servicio',               { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); dx += D2;
+    cell(doc, dx, yPos, D3, COL_H, 'Localidad',              { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); dx += D3;
+    cell(doc, dx, yPos, D4, COL_H, 'Nº Kilómetros',          { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); dx += D4;
+    cell(doc, dx, yPos, D5, COL_H, 'Dietas',                 { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); dx += D5;
+    cell(doc, dx, yPos, D6, COL_H, 'Tipo',                   { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); dx += D6;
+    cell(doc, dx, yPos, D7, COL_H, 'Cantidad',               { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT }); dx += D7;
+    cell(doc, dx, yPos, D8, COL_H, 'Motivo / Observaciones', { bold: true, fontSize: 6.5, fillColor: GRAY_LIGHT });
+  }
+
+  // Section header band
+  doc.setFillColor(...GRAY_DARK);
+  doc.rect(ML, y, UW, SEC_H, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(0);
+  doc.text('DESPLAZAMIENTO', PW / 2, y + SEC_H / 2 + 1.5, { align: 'center' });
+  y += SEC_H;
+
+  drawDispHeaders(y);
+  y += COL_H;
+
+  // Build one row per worked day across all service blocks
   interface KmRow { fecha: string; servicio: string; localidad: string; km: string }
   const rows: KmRow[] = [];
 
   for (const block of serviceBlocks) {
     const svc = services.find(s => s.id === block.serviceId);
     if (!svc) continue;
-    const workedDays = block.days.filter(d => d.entrada && d.salida);
-    for (const entry of workedDays) {
+    for (const d of block.days) {
+      if (!d.entrada || !d.salida) continue;
       rows.push({
-        fecha: `${zeroPad(entry.day)}/${zeroPad(month)}/${year}`,
+        fecha:    `${zeroPad(d.day)}/${zeroPad(month)}/${year}`,
         servicio: svc.nombre,
         localidad: svc.localidad,
-        km: String(entry.kilometraje),
+        km:       String(d.kilometraje),
       });
     }
   }
 
-  // Sort by date
+  // Sort chronologically
   rows.sort((a, b) => {
-    const [da, ma] = a.fecha.split('/').map(Number);
-    const [db, mb] = b.fecha.split('/').map(Number);
-    return ma !== mb ? ma - mb : da - db;
+    const [da] = a.fecha.split('/').map(Number);
+    const [db] = b.fecha.split('/').map(Number);
+    return da - db;
   });
 
-  const dataRowH = 6;
-  const TOTAL_ROWS = 30;
+  // Draw data rows — minimum 16, add pages if needed
+  const FIRMA_RESERVE = 30; // mm to keep free at bottom for signature boxes
+  const totalRows = Math.max(rows.length, 16);
 
-  for (let r = 0; r < TOTAL_ROWS; r++) {
+  for (let r = 0; r < totalRows; r++) {
+    // New page when approaching bottom
+    if (y + DATA_H + FIRMA_RESERVE > PH) {
+      doc.addPage();
+      y = MT;
+      drawDispHeaders(y);
+      y += COL_H;
+    }
+
     const row = rows[r];
-    const rowVals = row
-      ? [row.fecha, row.servicio, row.localidad, row.km, '', '', '', '']
-      : ['', '', '', '', '', '', '', ''];
-
-    cx = m;
-    dispCols.forEach((col, i) => {
-      cell(doc, cx, y, col.w, dataRowH, rowVals[i], { fontSize: 7 });
-      cx += col.w;
-    });
-    y += dataRowH;
+    let dx = ML;
+    cell(doc, dx, y, D1, DATA_H, row?.fecha     ?? '', { fontSize: 7 });                         dx += D1;
+    cell(doc, dx, y, D2, DATA_H, row?.servicio  ?? '', { fontSize: 6.5, align: 'left', paddingLeft: 2 }); dx += D2;
+    cell(doc, dx, y, D3, DATA_H, row?.localidad ?? '', { fontSize: 6.5, align: 'left', paddingLeft: 2 }); dx += D3;
+    cell(doc, dx, y, D4, DATA_H, row?.km        ?? '', { fontSize: 7 });                         dx += D4;
+    cell(doc, dx, y, D5, DATA_H, '',                   { fontSize: 7 });                         dx += D5;
+    cell(doc, dx, y, D6, DATA_H, '',                   { fontSize: 7 });                         dx += D6;
+    cell(doc, dx, y, D7, DATA_H, '',                   { fontSize: 7 });                         dx += D7;
+    cell(doc, dx, y, D8, DATA_H, '',                   { fontSize: 7 });
+    y += DATA_H;
   }
 
-  // ══════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════
   // FIRMA BOXES
-  // ══════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════
   y += 4;
-  const firmaW = 76;
-  const firmaH = 20;
-  const firmaGap = 30;
-  const firmaStartX = m + 10;
+  const FIRMA_LABEL_H = 6;
+  const FIRMA_BODY_H  = 16;
+  const FIRMA_W = (UW - 20) / 2; // two boxes with a 20 mm gap
+  const FIRMA_X1 = ML + 10;
+  const FIRMA_X2 = FIRMA_X1 + FIRMA_W + 20;
 
-  doc.setLineWidth(0.4);
   doc.setDrawColor(80);
-  doc.rect(firmaStartX, y, firmaW, firmaH);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.text('Firma Responsable Operativo', firmaStartX + firmaW / 2, y + 5, { align: 'center' });
+  doc.setLineWidth(0.3);
 
-  const firma2X = firmaStartX + firmaW + firmaGap;
-  doc.rect(firma2X, y, firmaW, firmaH);
-  doc.text('Firma empleado', firma2X + firmaW / 2, y + 5, { align: 'center' });
+  // Firma 1 — header + body
+  doc.setFillColor(...GRAY_LIGHT);
+  doc.rect(FIRMA_X1, y, FIRMA_W, FIRMA_LABEL_H, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(0);
+  doc.text('Firma Responsable Operativo', FIRMA_X1 + FIRMA_W / 2, y + FIRMA_LABEL_H / 2 + 1.5, { align: 'center' });
+  doc.setFillColor(255, 255, 255);
+  doc.rect(FIRMA_X1, y + FIRMA_LABEL_H, FIRMA_W, FIRMA_BODY_H, 'FD');
+
+  // Firma 2 — header + body
+  doc.setFillColor(...GRAY_LIGHT);
+  doc.rect(FIRMA_X2, y, FIRMA_W, FIRMA_LABEL_H, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text('Firma empleado', FIRMA_X2 + FIRMA_W / 2, y + FIRMA_LABEL_H / 2 + 1.5, { align: 'center' });
+  doc.setFillColor(255, 255, 255);
+  doc.rect(FIRMA_X2, y + FIRMA_LABEL_H, FIRMA_W, FIRMA_BODY_H, 'FD');
 
   return doc.output('blob');
 }
