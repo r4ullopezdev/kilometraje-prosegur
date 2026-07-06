@@ -7,27 +7,37 @@ const EMPTY: Service = { id: '', nombre: '', localidad: '', kilometraje: 0 };
 
 export default function ServiciosPage() {
   const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Service>(EMPTY);
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => { setServices(getServices()); }, []);
+  async function reload() {
+    setLoading(true);
+    setServices(await getServices());
+    setLoading(false);
+  }
+
+  useEffect(() => { reload(); }, []);
 
   function openNew() { setForm({ ...EMPTY, id: generateId() }); setEditing(false); setModal(true); }
   function openEdit(s: Service) { setForm(s); setEditing(true); setModal(true); }
 
-  function handleSave() {
-    if (!form.nombre || !form.localidad) return alert('Nombre y localidad son obligatorios');
-    if (form.kilometraje <= 0) return alert('El kilometraje debe ser mayor que 0');
-    saveService(form);
-    setServices(getServices());
+  async function handleSave() {
+    if (!form.nombre || !form.localidad) { alert('Nombre y localidad son obligatorios'); return; }
+    if (form.kilometraje <= 0) { alert('El kilometraje debe ser mayor que 0'); return; }
+    setSaving(true);
+    await saveService(form);
+    await reload();
+    setSaving(false);
     setModal(false);
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm('¿Eliminar este servicio?')) return;
-    deleteService(id);
-    setServices(getServices());
+    await deleteService(id);
+    await reload();
   }
 
   return (
@@ -39,7 +49,9 @@ export default function ServiciosPage() {
         </button>
       </div>
 
-      {services.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-16 text-gray-400">Cargando...</div>
+      ) : services.length === 0 ? (
         <div className="text-center py-16 text-gray-400">No hay servicios registrados</div>
       ) : (
         <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -58,9 +70,11 @@ export default function ServiciosPage() {
                   <td className="px-4 py-3 font-semibold">{svc.nombre}</td>
                   <td className="px-4 py-3">{svc.localidad}</td>
                   <td className="px-4 py-3 text-center font-mono">{svc.kilometraje} km</td>
-                  <td className="px-4 py-3 text-center flex gap-2 justify-center">
-                    <button onClick={() => openEdit(svc)} className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded font-semibold transition-colors">Editar</button>
-                    <button onClick={() => handleDelete(svc.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-semibold transition-colors">Borrar</button>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex gap-2 justify-center">
+                      <button onClick={() => openEdit(svc)} className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded font-semibold transition-colors">Editar</button>
+                      <button onClick={() => handleDelete(svc.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-semibold transition-colors">Borrar</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -91,8 +105,10 @@ export default function ServiciosPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-lg py-2.5 text-gray-600 font-semibold hover:bg-gray-50 transition-colors">Cancelar</button>
-              <button onClick={handleSave} className="flex-1 bg-blue-800 hover:bg-blue-900 text-white rounded-lg py-2.5 font-bold transition-colors">Guardar</button>
+              <button onClick={() => setModal(false)} disabled={saving} className="flex-1 border border-gray-300 rounded-lg py-2.5 text-gray-600 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50">Cancelar</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-800 hover:bg-blue-900 text-white rounded-lg py-2.5 font-bold transition-colors disabled:opacity-50">
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
           </div>
         </div>

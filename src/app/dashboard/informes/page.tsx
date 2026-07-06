@@ -1,8 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Report } from '@/lib/types';
+import { Report, Employee, Service } from '@/lib/types';
 import { getReports, getEmployees, getServices, deleteReport } from '@/lib/storage';
-import { Employee, Service } from '@/lib/types';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -10,16 +9,22 @@ export default function InformesPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  useEffect(() => {
-    setReports(getReports().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setEmployees(getEmployees());
-    setServices(getServices());
-  }, []);
+  async function reload() {
+    setLoading(true);
+    const [reps, emps, svcs] = await Promise.all([getReports(), getEmployees(), getServices()]);
+    setReports(reps.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    setEmployees(emps);
+    setServices(svcs);
+    setLoading(false);
+  }
+
+  useEffect(() => { reload(); }, []);
 
   function getEmployee(id: string) { return employees.find(e => e.id === id); }
 
@@ -47,9 +52,7 @@ export default function InformesPage() {
       a.download = `Informe_Diario_${emp.apellidos}_${MONTHS[report.month - 1]}_${report.year}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } finally {
-      setDownloading(null);
-    }
+    } finally { setDownloading(null); }
   }
 
   async function downloadKilometraje(report: Report) {
@@ -65,15 +68,13 @@ export default function InformesPage() {
       a.download = `Kilometraje_${emp.apellidos}_${MONTHS[report.month - 1]}_${report.year}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } finally {
-      setDownloading(null);
-    }
+    } finally { setDownloading(null); }
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm('¿Eliminar este informe?')) return;
-    deleteReport(id);
-    setReports(getReports().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    await deleteReport(id);
+    await reload();
   }
 
   const years = [...new Set(reports.map(r => r.year))].sort((a, b) => b - a);
@@ -83,15 +84,9 @@ export default function InformesPage() {
     <div className="p-8">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Informes</h1>
 
-      {/* Search + Filter */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="Buscar por nombre o código..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <input type="text" placeholder="Buscar por nombre o código..." value={search} onChange={e => setSearch(e.target.value)}
+          className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
           className="border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todos los años</option>
@@ -104,7 +99,9 @@ export default function InformesPage() {
         </select>
       </div>
 
-      {displayReports.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-16 text-gray-400">Cargando...</div>
+      ) : displayReports.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           {reports.length === 0 ? 'No hay informes generados aún' : 'Sin resultados para los filtros aplicados'}
         </div>
@@ -125,8 +122,6 @@ export default function InformesPage() {
               {displayReports.map((report, i) => {
                 const emp = getEmployee(report.employeeId);
                 const createdDate = new Date(report.createdAt);
-                const isDownloadingInforme = downloading === report.id + '-informe';
-                const isDownloadingKm = downloading === report.id + '-km';
                 return (
                   <tr key={report.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="px-4 py-3">
@@ -138,25 +133,20 @@ export default function InformesPage() {
                       {createdDate.toLocaleDateString('es-ES')} {createdDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => downloadInforme(report)}
-                        disabled={!!downloading}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded font-semibold text-xs transition-colors disabled:opacity-50"
-                      >
-                        {isDownloadingInforme ? '⏳' : '⬇'} Informe Diario
+                      <button onClick={() => downloadInforme(report)} disabled={!!downloading}
+                        className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded font-semibold text-xs transition-colors disabled:opacity-50">
+                        {downloading === report.id + '-informe' ? '⏳' : '⬇'} Informe Diario
                       </button>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => downloadKilometraje(report)}
-                        disabled={!!downloading}
-                        className="bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded font-semibold text-xs transition-colors disabled:opacity-50"
-                      >
-                        {isDownloadingKm ? '⏳' : '⬇'} Kilometraje
+                      <button onClick={() => downloadKilometraje(report)} disabled={!!downloading}
+                        className="bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded font-semibold text-xs transition-colors disabled:opacity-50">
+                        {downloading === report.id + '-km' ? '⏳' : '⬇'} Kilometraje
                       </button>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button onClick={() => handleDelete(report.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-semibold transition-colors">
+                      <button onClick={() => handleDelete(report.id)}
+                        className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-semibold transition-colors">
                         Borrar
                       </button>
                     </td>

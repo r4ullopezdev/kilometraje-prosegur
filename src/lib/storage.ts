@@ -1,75 +1,59 @@
 import { Employee, Service, Report } from './types';
 
-const KEYS = {
-  employees: 'km_employees',
-  services: 'km_services',
-  reports: 'km_reports',
-};
-
-function load<T>(key: string): T[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    return JSON.parse(localStorage.getItem(key) || '[]');
-  } catch {
-    return [];
-  }
+async function apiFetch<T>(path: string): Promise<T[]> {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`fetch ${path} → ${res.status}`);
+  return res.json();
 }
 
-function save<T>(key: string, data: T[]): void {
-  localStorage.setItem(key, JSON.stringify(data));
+async function apiPut(path: string, body: unknown): Promise<void> {
+  const res = await fetch(path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PUT ${path} → ${res.status}`);
 }
 
-// Employees
-export function getEmployees(): Employee[] {
-  return load<Employee>(KEYS.employees);
+async function apiDelete(path: string, id: string): Promise<void> {
+  const res = await fetch(`${path}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`DELETE ${path} → ${res.status}`);
 }
 
-export function saveEmployee(emp: Employee): void {
-  const list = getEmployees();
-  const idx = list.findIndex(e => e.id === emp.id);
-  if (idx >= 0) list[idx] = emp;
-  else list.push(emp);
-  save(KEYS.employees, list);
+// ── Employees ──────────────────────────────────────────────────────────────────
+export function getEmployees(): Promise<Employee[]> {
+  return apiFetch<Employee>('/api/employees');
+}
+export function saveEmployee(emp: Employee): Promise<void> {
+  return apiPut('/api/employees', emp);
+}
+export function deleteEmployee(id: string): Promise<void> {
+  return apiDelete('/api/employees', id);
 }
 
-export function deleteEmployee(id: string): void {
-  save(KEYS.employees, getEmployees().filter(e => e.id !== id));
+// ── Services ───────────────────────────────────────────────────────────────────
+export function getServices(): Promise<Service[]> {
+  return apiFetch<Service>('/api/services');
+}
+export function saveService(svc: Service): Promise<void> {
+  return apiPut('/api/services', svc);
+}
+export function deleteService(id: string): Promise<void> {
+  return apiDelete('/api/services', id);
 }
 
-// Services
-export function getServices(): Service[] {
-  return load<Service>(KEYS.services);
+// ── Reports ────────────────────────────────────────────────────────────────────
+export function getReports(): Promise<Report[]> {
+  return apiFetch<Report>('/api/reports');
+}
+export function saveReport(report: Report): Promise<void> {
+  return apiPut('/api/reports', report);
+}
+export function deleteReport(id: string): Promise<void> {
+  return apiDelete('/api/reports', id);
 }
 
-export function saveService(svc: Service): void {
-  const list = getServices();
-  const idx = list.findIndex(s => s.id === svc.id);
-  if (idx >= 0) list[idx] = svc;
-  else list.push(svc);
-  save(KEYS.services, list);
-}
-
-export function deleteService(id: string): void {
-  save(KEYS.services, getServices().filter(s => s.id !== id));
-}
-
-// Reports
-export function getReports(): Report[] {
-  return load<Report>(KEYS.reports);
-}
-
-export function saveReport(report: Report): void {
-  const list = getReports();
-  const idx = list.findIndex(r => r.id === report.id);
-  if (idx >= 0) list[idx] = report;
-  else list.push(report);
-  save(KEYS.reports, list);
-}
-
-export function deleteReport(id: string): void {
-  save(KEYS.reports, getReports().filter(r => r.id !== id));
-}
-
+// ── Utils ──────────────────────────────────────────────────────────────────────
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }

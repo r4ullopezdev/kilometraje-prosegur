@@ -7,26 +7,39 @@ const EMPTY: Employee = { id: '', codigo: '', nombre: '', apellidos: '', servici
 
 export default function EmpleadosPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState<Employee>(EMPTY);
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => { setEmployees(getEmployees()); }, []);
+  async function reload() {
+    setLoading(true);
+    setEmployees(await getEmployees());
+    setLoading(false);
+  }
+
+  useEffect(() => { reload(); }, []);
 
   function openNew() { setForm({ ...EMPTY, id: generateId() }); setEditing(false); setModal(true); }
   function openEdit(e: Employee) { setForm(e); setEditing(true); setModal(true); }
 
-  function handleSave() {
-    if (!form.codigo || !form.nombre || !form.apellidos) return alert('Código, nombre y apellidos son obligatorios');
-    saveEmployee(form);
-    setEmployees(getEmployees());
+  async function handleSave() {
+    if (!form.codigo || !form.nombre || !form.apellidos) {
+      alert('Código, nombre y apellidos son obligatorios');
+      return;
+    }
+    setSaving(true);
+    await saveEmployee(form);
+    await reload();
+    setSaving(false);
     setModal(false);
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm('¿Eliminar este empleado?')) return;
-    deleteEmployee(id);
-    setEmployees(getEmployees());
+    await deleteEmployee(id);
+    await reload();
   }
 
   return (
@@ -38,7 +51,9 @@ export default function EmpleadosPage() {
         </button>
       </div>
 
-      {employees.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-16 text-gray-400">Cargando...</div>
+      ) : employees.length === 0 ? (
         <div className="text-center py-16 text-gray-400">No hay empleados registrados</div>
       ) : (
         <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -61,9 +76,11 @@ export default function EmpleadosPage() {
                   <td className="px-4 py-3">{emp.apellidos}</td>
                   <td className="px-4 py-3">{emp.servicioHabitual}</td>
                   <td className="px-4 py-3">{emp.direccion}</td>
-                  <td className="px-4 py-3 text-center flex gap-2 justify-center">
-                    <button onClick={() => openEdit(emp)} className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded font-semibold transition-colors">Editar</button>
-                    <button onClick={() => handleDelete(emp.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-semibold transition-colors">Borrar</button>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex gap-2 justify-center">
+                      <button onClick={() => openEdit(emp)} className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded font-semibold transition-colors">Editar</button>
+                      <button onClick={() => handleDelete(emp.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-semibold transition-colors">Borrar</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -96,8 +113,10 @@ export default function EmpleadosPage() {
               ))}
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-lg py-2.5 text-gray-600 font-semibold hover:bg-gray-50 transition-colors">Cancelar</button>
-              <button onClick={handleSave} className="flex-1 bg-blue-800 hover:bg-blue-900 text-white rounded-lg py-2.5 font-bold transition-colors">Guardar</button>
+              <button onClick={() => setModal(false)} disabled={saving} className="flex-1 border border-gray-300 rounded-lg py-2.5 text-gray-600 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50">Cancelar</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-800 hover:bg-blue-900 text-white rounded-lg py-2.5 font-bold transition-colors disabled:opacity-50">
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
           </div>
         </div>
