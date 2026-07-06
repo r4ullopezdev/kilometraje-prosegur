@@ -30,6 +30,7 @@ export default function NuevoInformePage() {
   const [year, setYear] = useState(NOW.getFullYear());
   const [blocks, setBlocks] = useState<UIBlock[]>([]);
   const [svcModal, setSvcModal] = useState(false);
+  const [svcSearch, setSvcSearch] = useState('');
   const [generating, setGenerating] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
 
@@ -52,6 +53,7 @@ export default function NuevoInformePage() {
     }));
     setBlocks(b => [...b, { id: generateId(), serviceId: svcId, days, open: true }]);
     setSvcModal(false);
+    setSvcSearch('');
   }
 
   function removeBlock(id: string) {
@@ -274,27 +276,51 @@ export default function NuevoInformePage() {
       {/* Service Selection Modal */}
       {svcModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-            <h2 className="text-xl font-bold mb-4">Seleccionar Servicio</h2>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
+            <div className="p-6 pb-3 shrink-0">
+              <h2 className="text-xl font-bold mb-3">Seleccionar Servicio</h2>
+              <input
+                type="text"
+                placeholder="Buscar servicio..."
+                value={svcSearch}
+                onChange={e => setSvcSearch(e.target.value)}
+                autoFocus
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
             {availableServices.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">Todos los servicios ya han sido añadidos</p>
-            ) : (
-              <div className="space-y-2">
-                {availableServices.map(svc => (
-                  <button
-                    key={svc.id}
-                    onClick={() => addServiceBlock(svc.id)}
-                    className="w-full text-left border border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl p-4 transition-colors"
-                  >
-                    <div className="font-bold">{svc.nombre}</div>
-                    <div className="text-sm text-gray-500">{svc.localidad} — {svc.kilometraje} km</div>
-                  </button>
-                ))}
-              </div>
-            )}
-            <button onClick={() => setSvcModal(false)} className="mt-4 w-full border border-gray-300 rounded-lg py-2.5 text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancelar
-            </button>
+              <p className="text-gray-500 text-center py-6 px-6">Todos los servicios ya han sido añadidos</p>
+            ) : (() => {
+              const filtered = availableServices.filter(s =>
+                s.nombre.toLowerCase().includes(svcSearch.toLowerCase()) ||
+                s.localidad.toLowerCase().includes(svcSearch.toLowerCase())
+              );
+              return (
+                <div className="overflow-y-auto flex-1 px-6 py-2">
+                  {filtered.length === 0 ? (
+                    <p className="text-gray-400 text-sm text-center py-4">Sin resultados para &ldquo;{svcSearch}&rdquo;</p>
+                  ) : (
+                    <div className="space-y-2 pb-2">
+                      {filtered.map(svc => (
+                        <button
+                          key={svc.id}
+                          onClick={() => { addServiceBlock(svc.id); setSvcSearch(''); }}
+                          className="w-full text-left border border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl p-4 transition-colors"
+                        >
+                          <div className="font-bold">{svc.nombre}</div>
+                          <div className="text-sm text-gray-500">{svc.localidad} — {svc.kilometraje} km</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            <div className="p-6 pt-3 shrink-0">
+              <button onClick={() => { setSvcModal(false); setSvcSearch(''); }} className="w-full border border-gray-300 rounded-lg py-2.5 text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
