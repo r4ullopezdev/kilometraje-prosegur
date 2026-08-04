@@ -138,7 +138,7 @@ export async function generateKilometraje(
   cell(doc, ex, y, E5, EMP_H, 'Delegación',         { bold: true, fontSize: 7, fillColor: GRAY_LIGHT }); ex += E5;
   cell(doc, ex, y, E6, EMP_H, 'BARCELONA',          { fontSize: 7 }); ex += E6;
   cell(doc, ex, y, E7, EMP_H, 'Zona Operativa',     { bold: true, fontSize: 7, fillColor: GRAY_LIGHT }); ex += E7;
-  cell(doc, ex, y, E8, EMP_H, 'ZONA 1 EQUIPO 2',   { fontSize: 7 });
+  cell(doc, ex, y, E8, EMP_H, 'ZONA 1 EQUIPO 1',   { fontSize: 7 });
 
   y += EMP_H + 2;
 
